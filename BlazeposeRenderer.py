@@ -3,6 +3,10 @@ import numpy as np
 from o3d_utils import Visu3D
 import mediapipe_utils as mpu
 
+import rospy
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Point
+from std_msgs.msg import ColorRGBA
 
 
 # LINE_BODY and COLORS_BODY are used when drawing the skeleton in 3D. 
@@ -148,7 +152,78 @@ class BlazeposeRenderer:
                     if self.is_present(body, a) and self.is_present(body, b):
                             self.vis3d.add_segment(points[a], points[b], color=colors[i])
         self.vis3d.render()
-                
+
+
+    def draw_rviz(self, body):
+        marker = Marker()
+
+        marker.header.frame_id = "/human"
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = "human_pose"
+
+        # set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3 ; Line strip 4
+        marker.type = 5
+        marker.id = 0
+
+        # Set the scale of the marker
+        marker.scale.x = 0.01
+        marker.scale.y = 0.01
+        marker.scale.z = 0.01
+
+        if body is not None:
+            points = body.landmarks if self.show_3d == "image" else body.landmarks_world
+            draw_skeleton = True
+            if self.show_3d == "mixed":  
+                if body.xyz_ref:
+                    """
+                    Beware, the y value of landmarks_world coordinates is negative for landmarks 
+                    above the mid hips (like shoulders) and negative for landmarks below (like feet).
+                    The y value of (x,y,z) coordinates given by depth sensor is negative in the lower part
+                    of the image and positive in the upper part.
+                    """
+                    translation = body.xyz / 1000
+                    translation[1] = -translation[1]
+                    if body.xyz_ref == "mid_hips":                   
+                        points = points + translation
+                    elif body.xyz_ref == "mid_shoulders":
+                        mid_hips_to_mid_shoulders = np.mean([
+                            points[mpu.KEYPOINT_DICT['right_shoulder']],
+                            points[mpu.KEYPOINT_DICT['left_shoulder']]],
+                            axis=0) 
+                        points = points + translation - mid_hips_to_mid_shoulders   
+                else: 
+                    draw_skeleton = False
+            if draw_skeleton:
+                lines = LINES_BODY
+                colors = COLORS_BODY
+                for i,a_b in enumerate(lines):
+                    a, b = a_b
+                    if self.is_present(body, a) and self.is_present(body, b):
+                            point_a = Point()
+
+                            point_a.x = points[a][0]
+                            point_a.y = points[a][1]
+                            point_a.z = points[a][2]
+                            marker.points += [point_a]
+
+                            point_b = Point()
+
+                            point_b.x = points[b][0]
+                            point_b.y = points[b][1]
+                            point_b.z = points[b][2]
+                            marker.points += [point_b]   
+
+                            color = ColorRGBA()
+                            color.r = colors[i][0]
+                            color.g = colors[i][1]
+                            color.b = colors[i][2]
+                            color.a = 1.0
+
+                            marker.colors += [color] 
+                            marker.colors += [color]       
+
+        return marker
+
         
     def draw(self, frame, body):
         if not self.pause:
