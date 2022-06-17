@@ -50,7 +50,7 @@ KEYPOINTS = [
 class CameraNode:
     def __init__(self):
         self.br = CvBridge()
-        self.img_pub = rospy.Publisher('global_camera/compressed', CompressedImage, queue_size=10)
+        self.img_pub = rospy.Publisher('global_camera/compressed', CompressedImage, queue_size=1)
         self.body_pub = rospy.Publisher('body_pose', PoseArray, queue_size = 10)
         self.viz_pub  = rospy.Publisher("/visualization_marker", Marker, queue_size=1)
 
